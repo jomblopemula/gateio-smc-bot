@@ -277,7 +277,7 @@ class _SmcChartState extends State<SmcChart> {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: values.length,
-        separatorBuilder: (_, __) =>
+        separatorBuilder: (_, _) =>
             const SizedBox(width: 5),
         itemBuilder: (_, index) {
           final value = values[index];
