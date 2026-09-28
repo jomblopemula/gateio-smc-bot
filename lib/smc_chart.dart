@@ -246,6 +246,16 @@ class _SmcChartState extends State<SmcChart> {
     );
   }
 
+  String _formatPrice(double value) {
+    if (value >= 1000) {
+      return value.toStringAsFixed(2);
+    }
+    if (value >= 1) {
+      return value.toStringAsFixed(4);
+    }
+    return value.toStringAsFixed(6);
+  }
+
   Widget _buildTimeframeBar() {
     const values = [
       '1m',
