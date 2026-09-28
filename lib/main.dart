@@ -346,9 +346,7 @@ class _HomePageState extends State<HomePage> {
       final limit = settings.maxPositions;
 
       if (active >= limit) {
-        log('Max positions reached: $active/$limit');
-
-        return;
+        log('Max positions reached: $active/$limit • chart scan tetap berjalan');
       }
 
       // --------------------------------------------------------
@@ -387,6 +385,29 @@ class _HomePageState extends State<HomePage> {
             rr: settings.rr,
           );
 
+          // ----------------------------------------------------
+          // SAVE CHART SNAPSHOT
+          // Chart tetap tersedia walaupun belum ada signal.
+          // ----------------------------------------------------
+
+          final chartSnapshot = _ChartSnapshot(
+            id: '${c.name}-${DateTime.now().microsecondsSinceEpoch}',
+            contract: c.name,
+            signal: signal,
+            candles: List.unmodifiable(candles),
+          );
+
+          chartSnapshots.insert(0, chartSnapshot);
+          selectedChartId = chartSnapshot.id;
+
+          if (chartSnapshots.length > 30) {
+            chartSnapshots.removeLast();
+          }
+
+          // ----------------------------------------------------
+          // NO SIGNAL
+          // ----------------------------------------------------
+
           if (signal == null) {
             continue;
           }
@@ -397,19 +418,8 @@ class _HomePageState extends State<HomePage> {
 
           signals.insert(0, signal);
 
-          final chartSnapshot = _ChartSnapshot(
-            id: '${signal.contract}-${DateTime.now().microsecondsSinceEpoch}',
-            signal: signal,
-            candles: List.unmodifiable(candles),
-          );
-          chartSnapshots.insert(0, chartSnapshot);
-          selectedChartId = chartSnapshot.id;
-
           if (signals.length > 30) {
             signals.removeLast();
-          }
-          if (chartSnapshots.length > 30) {
-            chartSnapshots.removeLast();
           }
 
           log(
@@ -780,17 +790,22 @@ class _HomePageState extends State<HomePage> {
       orElse: () => chartSnapshots.first,
     );
 
+    final signal = snapshot.signal;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         DropdownButtonFormField<String>(
           initialValue: snapshot.id,
-          decoration: const InputDecoration(labelText: 'Signal'),
+          decoration: const InputDecoration(labelText: 'Market / Chart'),
           items: chartSnapshots
               .map(
                 (item) => DropdownMenuItem(
                   value: item.id,
-                  child: Text('${item.signal.contract} • ${item.signal.side}'),
+                  child: Text(
+                    '${item.contract} • '
+                    '${item.signal?.side ?? 'NO SIGNAL'}',
+                  ),
                 ),
               )
               .toList(),
@@ -803,11 +818,12 @@ class _HomePageState extends State<HomePage> {
           children: [
             Expanded(
               child: Text(
-                '${snapshot.signal.contract}  ${snapshot.signal.side}',
+                '${snapshot.contract}  '
+                '${signal?.side ?? 'NO SIGNAL'}',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
-            Text('${snapshot.signal.score}%'),
+            if (signal != null) Text('${signal.score}%'),
           ],
         ),
         const SizedBox(height: 8),
@@ -815,8 +831,8 @@ class _HomePageState extends State<HomePage> {
           height: 360,
           child: SmcChart(
             candles: snapshot.candles,
-            signal: snapshot.signal,
-            contract: snapshot.signal.contract,
+            signal: signal,
+            contract: snapshot.contract,
           ),
         ),
         const SizedBox(height: 12),
@@ -830,8 +846,10 @@ class _HomePageState extends State<HomePage> {
             _chartLegend('EMA 200', const Color(0xFFFFD166)),
           ],
         ),
-        const SizedBox(height: 8),
-        Text(snapshot.signal.reasons.join(' • ')),
+        if (signal != null) ...[
+          const SizedBox(height: 8),
+          Text(signal.reasons.join(' • ')),
+        ],
       ],
     );
   }
@@ -1097,11 +1115,13 @@ class _HomePageState extends State<HomePage> {
 
 class _ChartSnapshot {
   final String id;
-  final Signal signal;
+  final String contract;
+  final Signal? signal;
   final List<Candle> candles;
 
   const _ChartSnapshot({
     required this.id,
+    required this.contract,
     required this.signal,
     required this.candles,
   });
