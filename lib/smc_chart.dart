@@ -249,7 +249,7 @@ class _SmcChartPainter extends CustomPainter {
     // ----------------------------------------------------------
 
     final gridPaint = Paint()
-      ..color = Colors.white.withOpacity(0.06)
+      ..color = Colors.white.withValues(alpha: 0.06)
       ..strokeWidth = 1;
 
     for (int i = 0; i <= 5; i++) {
@@ -548,14 +548,14 @@ class _SmcChartPainter extends CustomPainter {
 
         final paint = Paint()
           ..color =
-              Colors.purpleAccent.withOpacity(0.15)
+              Colors.purpleAccent.withValues(alpha: 0.15)
           ..style = PaintingStyle.fill;
 
         canvas.drawRect(rect, paint);
 
         final border = Paint()
           ..color =
-              Colors.purpleAccent.withOpacity(0.45)
+              Colors.purpleAccent.withValues(alpha: 0.45)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1;
 
@@ -577,14 +577,14 @@ class _SmcChartPainter extends CustomPainter {
 
         final paint = Paint()
           ..color =
-              Colors.deepPurpleAccent.withOpacity(0.15)
+              Colors.deepPurpleAccent.withValues(alpha: 0.15)
           ..style = PaintingStyle.fill;
 
         canvas.drawRect(rect, paint);
 
         final border = Paint()
           ..color =
-              Colors.deepPurpleAccent.withOpacity(0.45)
+              Colors.deepPurpleAccent.withValues(alpha: 0.45)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1;
 
@@ -682,7 +682,7 @@ class _SmcChartPainter extends CustomPainter {
     );
 
     final fill = Paint()
-      ..color = color.withOpacity(0.08);
+      ..color = color.withValues(alpha: 0.08);
 
     canvas.drawRect(
       rect,
@@ -690,7 +690,7 @@ class _SmcChartPainter extends CustomPainter {
     );
 
     final border = Paint()
-      ..color = color.withOpacity(0.35)
+      ..color = color.withValues(alpha: 0.35)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
 
@@ -837,7 +837,7 @@ class _SmcChartPainter extends CustomPainter {
     }
 
     final paint = Paint()
-      ..color = color.withOpacity(0.8)
+      ..color = color.withValues(alpha: 0.8)
       ..strokeWidth = 1.2;
 
     canvas.drawLine(
