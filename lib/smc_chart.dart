@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'models.dart';
 
-class SmcChart extends StatelessWidget {
+class SmcChart extends StatefulWidget {
   final List<Candle> candles;
   final Signal? signal;
   final String contract;
@@ -17,98 +17,367 @@ class SmcChart extends StatelessWidget {
   });
 
   @override
+  State<SmcChart> createState() => _SmcChartState();
+}
+
+class _SmcChartState extends State<SmcChart> {
+  final TransformationController _controller =
+      TransformationController();
+
+  String _timeframe = '15m';
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _resetZoom() {
+    _controller.value = Matrix4.identity();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (candles.length < 10) {
+    if (widget.candles.length < 10) {
       return Center(
         child: Text(
-          candles.isEmpty
-              ? 'Belum ada data candle untuk $contract'
+          widget.candles.isEmpty
+              ? 'Belum ada data candle untuk ${widget.contract}'
               : 'Menunggu data candle yang cukup...',
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 12,
+          ),
         ),
       );
     }
 
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-          color: const Color(0xFF0D171C),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  contract,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
-              ),
-              Text(
-                '15m • ${candles.length} candles',
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Colors.white60,
-                ),
-              ),
-            ],
-          ),
+    final signal = widget.signal;
+    final side = signal?.side.toUpperCase() ?? 'NO SIGNAL';
+
+    final isBuy = side == 'BUY';
+    final isSell = side == 'SELL';
+
+    final statusColor = isBuy
+        ? Colors.greenAccent
+        : isSell
+            ? Colors.redAccent
+            : Colors.white70;
+
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: Color(0xFF071014),
+        borderRadius: BorderRadius.all(
+          Radius.circular(12),
         ),
-        Expanded(
-          child: CustomPaint(
-            painter: _SmcChartPainter(
-              candles: candles,
-              signal: signal,
+      ),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.all(
+          Radius.circular(12),
+        ),
+        child: Column(
+          children: [
+            _buildHeader(
+              signal,
+              side,
+              statusColor,
             ),
-            child: const SizedBox.expand(),
-          ),
+            _buildTimeframeBar(),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final chartWidth =
+                      math.max(
+                    920.0,
+                    constraints.maxWidth - 8.0,
+                  );
+
+                  final chartHeight =
+                      math.max(
+                    260.0,
+                    constraints.maxHeight,
+                  );
+
+                  return Stack(
+                    children: [
+                      InteractiveViewer(
+                        transformationController:
+                            _controller,
+                        constrained: false,
+                        panEnabled: true,
+                        scaleEnabled: true,
+                        minScale: 1.0,
+                        maxScale: 4.0,
+                        boundaryMargin:
+                            const EdgeInsets.all(180),
+                        child: SizedBox(
+                          width: chartWidth,
+                          height: chartHeight,
+                          child: CustomPaint(
+                            painter: _SmcChartPainter(
+                              candles: widget.candles,
+                              signal: signal,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      Positioned(
+                        top: 10,
+                        right: 10,
+                        child: Material(
+                          color:
+                              const Color(0xCC10181D),
+                          borderRadius:
+                              BorderRadius.circular(8),
+                          child: IconButton(
+                            tooltip: 'Reset zoom',
+                            onPressed: _resetZoom,
+                            icon: const Icon(
+                              Icons.fit_screen,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      Positioned(
+                        left: 10,
+                        bottom: 10,
+                        child: _buildStatusBadge(
+                          side,
+                          statusColor,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            _buildLegend(),
+          ],
         ),
-        _legend(),
-      ],
+      ),
     );
   }
 
-  Widget _legend() {
+  Widget _buildHeader(
+    Signal? signal,
+    String side,
+    Color statusColor,
+  ) {
+    final last = widget.candles.last.close;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        12,
+        9,
+        12,
+        9,
+      ),
+      color: const Color(0xFF0D171C),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.contract,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'LIVE • ${_formatPrice(last)} • $_timeframe',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: Colors.white54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 9,
+              vertical: 5,
+            ),
+            decoration: BoxDecoration(
+              color: statusColor.withValues(
+                alpha: 0.12,
+              ),
+              borderRadius:
+                  BorderRadius.circular(7),
+              border: Border.all(
+                color: statusColor.withValues(
+                  alpha: 0.45,
+                ),
+              ),
+            ),
+            child: Text(
+              side,
+              style: TextStyle(
+                color: statusColor,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+
+          if (signal != null) ...[
+            const SizedBox(width: 8),
+            Text(
+              '${signal.score}%',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimeframeBar() {
+    const values = [
+      '1m',
+      '5m',
+      '15m',
+      '30m',
+      '1h',
+      '4h',
+      '1D',
+    ];
+
+    return Container(
+      height: 40,
+      color: const Color(0xFF0A1318),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: 4,
+      ),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: values.length,
+        separatorBuilder: (_, __) =>
+            const SizedBox(width: 5),
+        itemBuilder: (_, index) {
+          final value = values[index];
+          final selected =
+              value == _timeframe;
+
+          return ChoiceChip(
+            label: Text(value),
+            selected: selected,
+            visualDensity:
+                VisualDensity.compact,
+            labelStyle: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: selected
+                  ? Colors.white
+                  : Colors.white60,
+            ),
+            onSelected: (_) {
+              setState(() {
+                _timeframe = value;
+              });
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(
+    String side,
+    Color color,
+  ) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xE610181D),
+        borderRadius:
+            BorderRadius.circular(8),
+        border: Border.all(
+          color: color.withValues(
+            alpha: 0.45,
+          ),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 9,
+          vertical: 6,
+        ),
+        child: Text(
+          side == 'NO SIGNAL'
+              ? 'SMC • Menunggu konfirmasi'
+              : 'SMC • $side',
+          style: TextStyle(
+            color: color,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLegend() {
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: 10,
-        vertical: 8,
+        vertical: 7,
       ),
       color: const Color(0xFF0D171C),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 5,
-        children: const [
-          _LegendItem(
-            color: Colors.greenAccent,
-            text: 'BUY',
-          ),
-          _LegendItem(
-            color: Colors.redAccent,
-            text: 'SELL',
-          ),
-          _LegendItem(
-            color: Colors.orangeAccent,
-            text: 'SWEEP',
-          ),
-          _LegendItem(
-            color: Colors.cyanAccent,
-            text: 'BOS',
-          ),
-          _LegendItem(
-            color: Colors.purpleAccent,
-            text: 'FVG',
-          ),
-          _LegendItem(
-            color: Colors.yellowAccent,
-            text: 'OB',
-          ),
-          _LegendItem(
-            color: Colors.blueAccent,
-            text: 'EMA200',
-          ),
-        ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: const [
+            _LegendItem(
+              color: Colors.greenAccent,
+              text: 'BUY',
+            ),
+            SizedBox(width: 12),
+            _LegendItem(
+              color: Colors.redAccent,
+              text: 'SELL',
+            ),
+            SizedBox(width: 12),
+            _LegendItem(
+              color: Colors.orangeAccent,
+              text: 'SWEEP',
+            ),
+            SizedBox(width: 12),
+            _LegendItem(
+              color: Colors.cyanAccent,
+              text: 'BOS',
+            ),
+            SizedBox(width: 12),
+            _LegendItem(
+              color: Colors.purpleAccent,
+              text: 'FVG',
+            ),
+            SizedBox(width: 12),
+            _LegendItem(
+              color: Colors.yellowAccent,
+              text: 'OB',
+            ),
+            SizedBox(width: 12),
+            _LegendItem(
+              color: Colors.blueAccent,
+              text: 'EMA200',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -139,7 +408,9 @@ class _LegendItem extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           text,
-          style: const TextStyle(fontSize: 10),
+          style: const TextStyle(
+            fontSize: 10,
+          ),
         ),
       ],
     );
@@ -156,41 +427,53 @@ class _SmcChartPainter extends CustomPainter {
   });
 
   @override
-  void paint(Canvas canvas, Size size) {
-    if (candles.isEmpty || size.width <= 0 || size.height <= 0) {
+  void paint(
+    Canvas canvas,
+    Size size,
+  ) {
+    if (candles.isEmpty ||
+        size.width <= 0 ||
+        size.height <= 0) {
       return;
     }
 
-    const left = 52.0;
-    const right = 12.0;
+    const left = 58.0;
+    const right = 14.0;
     const top = 18.0;
     const bottom = 34.0;
 
     final chartWidth =
-        math.max(1.0, size.width - left - right);
+        math.max(
+      1.0,
+      size.width - left - right,
+    );
 
     final chartHeight =
-        math.max(1.0, size.height - top - bottom);
+        math.max(
+      1.0,
+      size.height - top - bottom,
+    );
 
-    // Gunakan candle terbaru agar chart tidak terlalu padat.
     final visibleCount =
-        math.min(80, candles.length);
+        math.min(100, candles.length);
 
-    final data = candles
-        .sublist(candles.length - visibleCount)
-        .toList();
+    final data = candles.sublist(
+      candles.length - visibleCount,
+    );
 
     final prices = <double>[];
 
-    for (final c in data) {
-      prices.add(c.high);
-      prices.add(c.low);
+    for (final candle in data) {
+      prices
+        ..add(candle.high)
+        ..add(candle.low);
     }
 
     if (signal != null) {
-      prices.add(signal!.entry);
-      prices.add(signal!.stop);
-      prices.add(signal!.tp);
+      prices
+        ..add(signal!.entry)
+        ..add(signal!.stop)
+        ..add(signal!.tp);
     }
 
     final maxPrice =
@@ -199,62 +482,63 @@ class _SmcChartPainter extends CustomPainter {
     final minPrice =
         prices.reduce(math.min);
 
-    final padding =
-        math.max((maxPrice - minPrice) * 0.08, 0.000001);
+    final padding = math.max(
+      (maxPrice - minPrice) * 0.08,
+      0.000001,
+    );
 
-    final high = maxPrice + padding;
-    final low = minPrice - padding;
+    final high =
+        maxPrice + padding;
+
+    final low =
+        minPrice - padding;
 
     double xFor(int index) {
       if (data.length <= 1) {
-        return left + chartWidth / 2;
+        return left +
+            chartWidth / 2;
       }
 
       return left +
-          (index / (data.length - 1)) *
+          index /
+              (data.length - 1) *
               chartWidth;
     }
 
     double yFor(double price) {
-      final range = high - low;
+      final range =
+          high - low;
 
       if (range <= 0) {
-        return top + chartHeight / 2;
+        return top +
+            chartHeight / 2;
       }
 
       return top +
-          ((high - price) / range) *
+          (high - price) /
+              range *
               chartHeight;
     }
 
-    // ----------------------------------------------------------
-    // BACKGROUND
-    // ----------------------------------------------------------
-
-    final backgroundPaint = Paint()
-      ..color = const Color(0xFF081014);
-
     canvas.drawRect(
-      Rect.fromLTWH(
-        0,
-        0,
-        size.width,
-        size.height,
-      ),
-      backgroundPaint,
+      Offset.zero & size,
+      Paint()
+        ..color =
+            const Color(0xFF081014),
     );
 
-    // ----------------------------------------------------------
-    // GRID
-    // ----------------------------------------------------------
-
     final gridPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.06)
+      ..color = Colors.white.withValues(
+        alpha: 0.055,
+      )
       ..strokeWidth = 1;
 
     for (int i = 0; i <= 5; i++) {
       final y =
-          top + chartHeight * i / 5;
+          top +
+              chartHeight *
+                  i /
+                  5;
 
       canvas.drawLine(
         Offset(left, y),
@@ -266,9 +550,12 @@ class _SmcChartPainter extends CustomPainter {
       );
     }
 
-    for (int i = 0; i <= 6; i++) {
+    for (int i = 0; i <= 8; i++) {
       final x =
-          left + chartWidth * i / 6;
+          left +
+              chartWidth *
+                  i /
+                  8;
 
       canvas.drawLine(
         Offset(x, top),
@@ -280,51 +567,46 @@ class _SmcChartPainter extends CustomPainter {
       );
     }
 
-    // ----------------------------------------------------------
-    // PRICE LABELS
-    // ----------------------------------------------------------
-
-    final textStyle = const TextStyle(
+    const textStyle = TextStyle(
       color: Colors.white54,
       fontSize: 9,
     );
 
     for (int i = 0; i <= 5; i++) {
       final price =
-          high - (high - low) * i / 5;
+          high -
+              (high - low) *
+                  i /
+                  5;
 
-      final tp = TextPainter(
+      final painter = TextPainter(
         text: TextSpan(
           text: _formatPrice(price),
           style: textStyle,
         ),
-        textDirection: TextDirection.ltr,
+        textDirection:
+            TextDirection.ltr,
       )..layout();
 
-      tp.paint(
+      painter.paint(
         canvas,
         Offset(
           3,
-          top + chartHeight * i / 5 - 6,
+          top +
+              chartHeight *
+                  i /
+                  5 -
+              6,
         ),
       );
     }
-
-    // ----------------------------------------------------------
-    // FVG
-    // ----------------------------------------------------------
 
     _drawFvg(
       canvas,
       data,
       xFor,
       yFor,
-      visibleCount,
     );
-
-    // ----------------------------------------------------------
-    // ORDER BLOCK PROXY
-    // ----------------------------------------------------------
 
     _drawOrderBlocks(
       canvas,
@@ -333,109 +615,134 @@ class _SmcChartPainter extends CustomPainter {
       yFor,
     );
 
-    // ----------------------------------------------------------
-    // CANDLESTICKS
-    // ----------------------------------------------------------
-
     final candleWidth =
         math.max(
-          2.0,
-          math.min(
-            10.0,
-            chartWidth /
+      2.0,
+      math.min(
+        11.0,
+        chartWidth /
                 data.length *
-                0.65,
-          ),
-        );
+                0.72,
+      ),
+    );
 
-    for (int i = 0; i < data.length; i++) {
-      final c = data[i];
+    for (int i = 0;
+        i < data.length;
+        i++) {
+      final candle =
+          data[i];
 
-      final x = xFor(i);
+      final x =
+          xFor(i);
 
-      final isBull =
-          c.close >= c.open;
-
-      final color = isBull
-          ? Colors.greenAccent
-          : Colors.redAccent;
-
-      final wickPaint = Paint()
-        ..color = color
-        ..strokeWidth = 1;
+      final candleColor =
+          candle.close >= candle.open
+              ? Colors.greenAccent
+              : Colors.redAccent;
 
       canvas.drawLine(
-        Offset(x, yFor(c.high)),
-        Offset(x, yFor(c.low)),
-        wickPaint,
+        Offset(
+          x,
+          yFor(candle.high),
+        ),
+        Offset(
+          x,
+          yFor(candle.low),
+        ),
+        Paint()
+          ..color =
+              candleColor
+          ..strokeWidth = 1,
       );
 
       final bodyTop =
-          yFor(math.max(c.open, c.close));
+          yFor(
+        math.max(
+          candle.open,
+          candle.close,
+        ),
+      );
 
       final bodyBottom =
-          yFor(math.min(c.open, c.close));
-
-      final bodyHeight =
-          math.max(1.5, bodyBottom - bodyTop);
-
-      final bodyPaint = Paint()
-        ..color = color;
+          yFor(
+        math.min(
+          candle.open,
+          candle.close,
+        ),
+      );
 
       canvas.drawRect(
         Rect.fromLTWH(
-          x - candleWidth / 2,
+          x -
+              candleWidth /
+                  2,
           bodyTop,
           candleWidth,
-          bodyHeight,
+          math.max(
+            1.5,
+            bodyBottom -
+                bodyTop,
+          ),
         ),
-        bodyPaint,
+        Paint()
+          ..color =
+              candleColor,
       );
     }
 
-    // ----------------------------------------------------------
-    // EMA 200
-    // ----------------------------------------------------------
-
-    final ema = _calculateEma(
+    final ema =
+        _calculateEma(
       candles,
       200,
     );
 
     final emaStart =
         math.max(
-          0,
-          ema.length - data.length,
-        );
+      0,
+      ema.length -
+          data.length,
+    );
 
     final emaVisible =
-        ema.sublist(emaStart);
+        ema.sublist(
+      emaStart,
+    );
 
     if (emaVisible.length > 1) {
       final emaPaint = Paint()
-        ..color = Colors.blueAccent
-        ..strokeWidth = 1.5
-        ..style = PaintingStyle.stroke;
+        ..color =
+            Colors.blueAccent
+        ..strokeWidth = 1.8
+        ..style =
+            PaintingStyle.stroke;
 
       final path = Path();
 
       for (int i = 0;
           i < emaVisible.length;
           i++) {
-        final x = xFor(
+        final x =
+            xFor(
           i +
               data.length -
                   emaVisible.length,
         );
 
-        final y = yFor(
+        final y =
+            yFor(
           emaVisible[i],
         );
 
         if (i == 0) {
-          path.moveTo(x, y);
+          path.moveTo(
+            x,
+            y,
+          );
         } else {
-          path.lineTo(x, y);
+          path.lineTo(
+            x,
+            y,
+          );
         }
       }
 
@@ -445,20 +752,12 @@ class _SmcChartPainter extends CustomPainter {
       );
     }
 
-    // ----------------------------------------------------------
-    // SMC EVENTS
-    // ----------------------------------------------------------
-
     _drawSmcEvents(
       canvas,
       data,
       xFor,
       yFor,
     );
-
-    // ----------------------------------------------------------
-    // SIGNAL ENTRY / SL / TP
-    // ----------------------------------------------------------
 
     if (signal != null) {
       _drawSignalLevels(
@@ -469,27 +768,25 @@ class _SmcChartPainter extends CustomPainter {
       );
     }
 
-    // ----------------------------------------------------------
-    // CURRENT PRICE
-    // ----------------------------------------------------------
-
     final last =
         data.last.close;
 
     final currentY =
         yFor(last);
 
-    final currentPaint = Paint()
-      ..color = Colors.white54
-      ..strokeWidth = 1;
-
     canvas.drawLine(
-      Offset(left, currentY),
+      Offset(
+        left,
+        currentY,
+      ),
       Offset(
         size.width - right,
         currentY,
       ),
-      currentPaint,
+      Paint()
+        ..color =
+            Colors.white54
+        ..strokeWidth = 1,
     );
 
     final currentText =
@@ -499,103 +796,67 @@ class _SmcChartPainter extends CustomPainter {
         style: const TextStyle(
           color: Colors.white,
           fontSize: 9,
-          fontWeight: FontWeight.bold,
+          fontWeight:
+              FontWeight.bold,
         ),
       ),
-      textDirection: TextDirection.ltr,
+      textDirection:
+          TextDirection.ltr,
     )..layout();
 
     currentText.paint(
       canvas,
       Offset(
-        size.width - right - currentText.width,
+        size.width -
+            right -
+            currentText.width,
         currentY - 14,
       ),
     );
   }
-
-  // ============================================================
-  // FVG
-  // ============================================================
 
   void _drawFvg(
     Canvas canvas,
     List<Candle> data,
     double Function(int) xFor,
     double Function(double) yFor,
-    int visibleCount,
   ) {
     if (data.length < 3) {
       return;
     }
 
-    for (int i = 2; i < data.length; i++) {
-      final a = data[i - 2];
-      final c = data[i];
+    for (int i = 2;
+        i < data.length;
+        i++) {
+      final a =
+          data[i - 2];
 
-      // Bullish FVG:
-      // high candle A < low candle C
+      final c =
+          data[i];
+
       if (a.high < c.low) {
-        final topPrice = c.low;
-        final bottomPrice = a.high;
-
-        final rect = Rect.fromLTRB(
+        _drawZone(
+          canvas,
           xFor(i - 2),
-          yFor(topPrice),
           xFor(i),
-          yFor(bottomPrice),
+          yFor(c.low),
+          yFor(a.high),
+          Colors.purpleAccent,
         );
-
-        final paint = Paint()
-          ..color =
-              Colors.purpleAccent.withValues(alpha: 0.15)
-          ..style = PaintingStyle.fill;
-
-        canvas.drawRect(rect, paint);
-
-        final border = Paint()
-          ..color =
-              Colors.purpleAccent.withValues(alpha: 0.45)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1;
-
-        canvas.drawRect(rect, border);
       }
 
-      // Bearish FVG:
-      // low candle A > high candle C
       if (a.low > c.high) {
-        final topPrice = a.low;
-        final bottomPrice = c.high;
-
-        final rect = Rect.fromLTRB(
+        _drawZone(
+          canvas,
           xFor(i - 2),
-          yFor(topPrice),
           xFor(i),
-          yFor(bottomPrice),
+          yFor(a.low),
+          yFor(c.high),
+          Colors.deepPurpleAccent,
         );
-
-        final paint = Paint()
-          ..color =
-              Colors.deepPurpleAccent.withValues(alpha: 0.15)
-          ..style = PaintingStyle.fill;
-
-        canvas.drawRect(rect, paint);
-
-        final border = Paint()
-          ..color =
-              Colors.deepPurpleAccent.withValues(alpha: 0.45)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1;
-
-        canvas.drawRect(rect, border);
       }
     }
   }
-
-  // ============================================================
-  // ORDER BLOCK PROXY
-  // ============================================================
 
   void _drawOrderBlocks(
     Canvas canvas,
@@ -607,15 +868,22 @@ class _SmcChartPainter extends CustomPainter {
       return;
     }
 
-    for (int i = 3; i < data.length; i++) {
-      final previous = data[i - 1];
-      final current = data[i];
+    for (int i = 3;
+        i < data.length;
+        i++) {
+      final previous =
+          data[i - 1];
+
+      final current =
+          data[i];
 
       final previousRange =
-          previous.high - previous.low;
+          previous.high -
+              previous.low;
 
       final currentRange =
-          current.high - current.low;
+          current.high -
+              current.low;
 
       if (previousRange <= 0 ||
           currentRange <= 0) {
@@ -623,19 +891,26 @@ class _SmcChartPainter extends CustomPainter {
       }
 
       final bullishImpulse =
-          current.close > previous.high &&
-          current.close > current.open &&
-          currentRange >
-              previousRange * 1.25;
+          current.close >
+                  previous.high &&
+              current.close >
+                  current.open &&
+              currentRange >
+                  previousRange *
+                      1.25;
 
       final bearishImpulse =
-          current.close < previous.low &&
-          current.close < current.open &&
-          currentRange >
-              previousRange * 1.25;
+          current.close <
+                  previous.low &&
+              current.close <
+                  current.open &&
+              currentRange >
+                  previousRange *
+                      1.25;
 
       if (bullishImpulse &&
-          previous.close < previous.open) {
+          previous.close <
+              previous.open) {
         _drawZone(
           canvas,
           xFor(i - 1),
@@ -647,7 +922,8 @@ class _SmcChartPainter extends CustomPainter {
       }
 
       if (bearishImpulse &&
-          previous.close > previous.open) {
+          previous.close >
+              previous.open) {
         _drawZone(
           canvas,
           xFor(i - 1),
@@ -674,35 +950,35 @@ class _SmcChartPainter extends CustomPainter {
     final bottom =
         math.max(y1, y2);
 
-    final rect = Rect.fromLTRB(
+    final rect =
+        Rect.fromLTRB(
       x1,
       top,
       x2,
       bottom,
     );
 
-    final fill = Paint()
-      ..color = color.withValues(alpha: 0.08);
-
     canvas.drawRect(
       rect,
-      fill,
+      Paint()
+        ..color =
+            color.withValues(
+          alpha: 0.08,
+        ),
     );
 
-    final border = Paint()
-      ..color = color.withValues(alpha: 0.35)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-
     canvas.drawRect(
       rect,
-      border,
+      Paint()
+        ..color =
+            color.withValues(
+          alpha: 0.35,
+        )
+        ..style =
+            PaintingStyle.stroke
+        ..strokeWidth = 1,
     );
   }
-
-  // ============================================================
-  // BOS / LIQUIDITY SWEEP
-  // ============================================================
 
   void _drawSmcEvents(
     Canvas canvas,
@@ -714,33 +990,53 @@ class _SmcChartPainter extends CustomPainter {
       return;
     }
 
-    for (int i = 5; i < data.length; i++) {
-      final current = data[i];
+    for (int i = 5;
+        i < data.length;
+        i++) {
+      final current =
+          data[i];
 
-      double previousHigh = data[i - 5].high;
-      double previousLow = data[i - 5].low;
+      double previousHigh =
+          data[i - 5].high;
 
-      for (int j = i - 5; j < i; j++) {
+      double previousLow =
+          data[i - 5].low;
+
+      for (int j = i - 5;
+          j < i;
+          j++) {
         previousHigh =
-            math.max(previousHigh, data[j].high);
+            math.max(
+          previousHigh,
+          data[j].high,
+        );
 
         previousLow =
-            math.min(previousLow, data[j].low);
+            math.min(
+          previousLow,
+          data[j].low,
+        );
       }
 
       final bullishBos =
-          current.close > previousHigh;
+          current.close >
+              previousHigh;
 
       final bearishBos =
-          current.close < previousLow;
+          current.close <
+              previousLow;
 
       final bullishSweep =
-          current.low < previousLow &&
-          current.close > previousLow;
+          current.low <
+                  previousLow &&
+              current.close >
+                  previousLow;
 
       final bearishSweep =
-          current.high > previousHigh &&
-          current.close < previousHigh;
+          current.high >
+                  previousHigh &&
+              current.close <
+                  previousHigh;
 
       if (bullishBos) {
         _label(
@@ -784,10 +1080,6 @@ class _SmcChartPainter extends CustomPainter {
     }
   }
 
-  // ============================================================
-  // SIGNAL LEVELS
-  // ============================================================
-
   void _drawSignalLevels(
     Canvas canvas,
     Size size,
@@ -795,10 +1087,13 @@ class _SmcChartPainter extends CustomPainter {
     Signal signal,
   ) {
     final isBuy =
-        signal.side.toUpperCase() == 'BUY';
+        signal.side.toUpperCase() ==
+            'BUY';
 
     final entryColor =
-        isBuy ? Colors.greenAccent : Colors.redAccent;
+        isBuy
+            ? Colors.greenAccent
+            : Colors.redAccent;
 
     _level(
       canvas,
@@ -832,36 +1127,41 @@ class _SmcChartPainter extends CustomPainter {
     Color color,
     String text,
   ) {
-    if (y < 12 || y > size.height - 25) {
+    if (y < 12 ||
+        y > size.height - 25) {
       return;
     }
 
-    final paint = Paint()
-      ..color = color.withValues(alpha: 0.8)
-      ..strokeWidth = 1.2;
-
     canvas.drawLine(
-      const Offset(48, 0),
+      Offset(48, y),
       Offset(
         size.width - 8,
         y,
       ),
-      paint,
+      Paint()
+        ..color =
+            color.withValues(
+          alpha: 0.8,
+        )
+        ..strokeWidth = 1.2,
     );
 
-    final tp = TextPainter(
+    final painter =
+        TextPainter(
       text: TextSpan(
         text: text,
         style: TextStyle(
           color: color,
           fontSize: 9,
-          fontWeight: FontWeight.bold,
+          fontWeight:
+              FontWeight.bold,
         ),
       ),
-      textDirection: TextDirection.ltr,
+      textDirection:
+          TextDirection.ltr,
     )..layout();
 
-    tp.paint(
+    painter.paint(
       canvas,
       Offset(
         54,
@@ -870,10 +1170,6 @@ class _SmcChartPainter extends CustomPainter {
     );
   }
 
-  // ============================================================
-  // TEXT LABEL
-  // ============================================================
-
   void _label(
     Canvas canvas,
     String text,
@@ -881,33 +1177,37 @@ class _SmcChartPainter extends CustomPainter {
     double y,
     Color color,
   ) {
-    final tp = TextPainter(
+    final painter =
+        TextPainter(
       text: TextSpan(
         text: text,
         style: TextStyle(
           color: color,
           fontSize: 8,
-          fontWeight: FontWeight.bold,
+          fontWeight:
+              FontWeight.bold,
         ),
       ),
-      textDirection: TextDirection.ltr,
+      textDirection:
+          TextDirection.ltr,
     )..layout();
 
-    final drawX =
-        math.max(48.0, x - tp.width / 2);
-
-    final drawY =
-        math.max(4.0, y);
-
-    tp.paint(
+    painter.paint(
       canvas,
-      Offset(drawX, drawY),
+      Offset(
+        math.max(
+          58.0,
+          x -
+              painter.width /
+                  2,
+        ),
+        math.max(
+          4.0,
+          y,
+        ),
+      ),
     );
   }
-
-  // ============================================================
-  // EMA
-  // ============================================================
 
   List<double> _calculateEma(
     List<Candle> source,
@@ -917,10 +1217,12 @@ class _SmcChartPainter extends CustomPainter {
       return [];
     }
 
-    final result = <double>[];
+    final result =
+        <double>[];
 
     final alpha =
-        2.0 / (period + 1);
+        2.0 /
+            (period + 1);
 
     double previous =
         source.first.close;
@@ -931,9 +1233,10 @@ class _SmcChartPainter extends CustomPainter {
         i < source.length;
         i++) {
       previous =
-          (source[i].close - previous) *
-                  alpha +
-              previous;
+          (source[i].close -
+                  previous) *
+              alpha +
+          previous;
 
       result.add(previous);
     }
@@ -941,7 +1244,9 @@ class _SmcChartPainter extends CustomPainter {
     return result;
   }
 
-  String _formatPrice(double value) {
+  String _formatPrice(
+    double value,
+  ) {
     if (value >= 1000) {
       return value.toStringAsFixed(2);
     }
