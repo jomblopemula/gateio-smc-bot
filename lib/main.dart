@@ -813,9 +813,10 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height: 8),
         SizedBox(
           height: 360,
-          child: SmcCandlestickChart(
+          child: SmcChart(
             candles: snapshot.candles,
             signal: snapshot.signal,
+            contract: snapshot.signal.contract,
           ),
         ),
         const SizedBox(height: 12),
