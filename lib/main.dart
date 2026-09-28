@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -828,7 +829,13 @@ class _HomePageState extends State<HomePage> {
         ),
         const SizedBox(height: 8),
         SizedBox(
-          height: 360,
+          height: math.min(
+            560.0,
+            math.max(
+              430.0,
+              MediaQuery.sizeOf(context).height * 0.55,
+            ),
+          ),
           child: SmcChart(
             candles: snapshot.candles,
             signal: signal,
